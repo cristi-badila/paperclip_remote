@@ -27,11 +27,12 @@ module Paperclip::Remote
       url = URI(string.presence) rescue nil
       url = nil unless URI::HTTP === url
       instance_variable_set(:"@#{name}_remote_url", url)
+      instance_variable_set(:"@#{name}_remote_url_was_set", false)
     end
 
     before_validation do |record|
       url = record.send(:"#{name}_remote_url")
-      break unless url.present?
+      break unless url.present? && !instance_variable_get(:"@#{name}_remote_url_was_set")
 
       begin
         if Paperclip::VERSION < "3.1.4"
@@ -41,10 +42,17 @@ module Paperclip::Remote
           end
           send :"#{name}=", io
         else
-          record.send(:"#{name}_remote_url=", nil) # Reset!
+          instance_variable_set(:"@#{name}_remote_url_was_set", true)
           send :"#{name}=", url
         end
       rescue OpenURI::HTTPError
+      end
+    end
+
+    after_save do |record|
+      url = record.send(:"#{name}_remote_url")
+      if url.present?
+        record.send(:"#{name}_remote_url=", nil) # Reset!
       end
     end
 
